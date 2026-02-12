@@ -540,7 +540,7 @@
     <div class="main-content" id="main-content">
     <div class="container">
         <h1>Presenças 2026</h1>
-        <p class="subtitle">1º Semestre 2026 - Atualizado 12/02/2026 12:00</p>
+        <p class="subtitle">1º Semestre 2026 - Atualizado 11/02/2026 21:44</p>
 
         <div class="tabs">
             <div class="tab active" onclick="showSection('grupos')">Por Grupo</div>
@@ -1851,6 +1851,16 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card" id="justificar-faltas-card">
+                <h2>📋 Justificar/Rejeitar Faltas</h2>
+                <p style="color: rgba(255,255,255,0.6); margin-bottom: 15px;">
+                    Faltas pendentes de decisão. Clique para justificar ou rejeitar.
+                </p>
+                <div id="pending-absences-list">
+                    <p style="color: rgba(255,255,255,0.5);">Carregando faltas pendentes...</p>
+                </div>
+            </div>
         </div>
 
         <div id="section-relatorios" class="content-section">
@@ -2037,7 +2047,7 @@
             </div>
         </div>
 
-        <p class="footer">Favela Brass - Sistema de Presenças · 12/02/2026 12:00</p>
+        <p class="footer">Favela Brass - Sistema de Presenças · 11/02/2026 21:44</p>
     </div>
     </div><!-- end main-content -->
 
@@ -2697,6 +2707,216 @@ Podemos conversar?`;
                 setTimeout(() => btn.textContent = '📋 Copiar Todas', 2000);
             });
         }
+
+        // ===== JUSTIFICATION SYSTEM =====
+        const API_BASE = 'http://45.55.73.116:5004';
+        const API_TOKEN = 'fb-presencas-2026';
+
+        // Load pending absences when Alertas tab is shown
+        async function loadPendingAbsences() {
+            const container = document.getElementById('pending-absences-list');
+            if (!container) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/absences?days=30`, {
+                    headers: { 'X-API-Token': API_TOKEN }
+                });
+
+                if (!response.ok) throw new Error('API error');
+
+                const data = await response.json();
+                const absences = data.absences || [];
+
+                if (absences.length === 0) {
+                    container.innerHTML = '<p style="color: #62CC3C;">✅ Nenhuma falta pendente de decisão!</p>';
+                    return;
+                }
+
+                let html = '<div class="group-list">';
+                absences.forEach(a => {
+                    const dateFormatted = new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR');
+                    html += `
+                        <div class="absence-item" style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <div>
+                                    <div style="font-weight: bold;">[[${a.student_id}]] ${a.student_name}</div>
+                                    <div style="color: rgba(255,255,255,0.6); font-size: 0.9em;">
+                                        ${dateFormatted} - ${a.activity_name}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button onclick="showJustifyModal(${a.student_id}, '${a.date}', '${a.activity_type}', '${a.activity_name}', '${a.student_name}')"
+                                            style="padding: 8px 12px; border-radius: 8px; border: none; background: #62CC3C; color: #fff; cursor: pointer; font-size: 0.85em;">
+                                        ✓ Justificar
+                                    </button>
+                                    <button onclick="showRejectModal(${a.student_id}, '${a.date}', '${a.activity_type}', '${a.activity_name}', '${a.student_name}')"
+                                            style="padding: 8px 12px; border-radius: 8px; border: none; background: #E74C3C; color: #fff; cursor: pointer; font-size: 0.85em;">
+                                        ✗ Rejeitar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+
+            } catch (error) {
+                container.innerHTML = `<p style="color: #E74C3C;">❌ Erro ao carregar faltas: ${error.message}</p>
+                    <p style="color: rgba(255,255,255,0.5); font-size: 0.9em;">Verifique se o servidor está online.</p>`;
+            }
+        }
+
+        function showJustifyModal(studentId, date, activityType, activityName, studentName) {
+            const dateFormatted = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+            const modal = document.createElement('div');
+            modal.id = 'justify-modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;';
+            modal.innerHTML = `
+                <div style="background: #2D1B4E; border-radius: 16px; padding: 24px; max-width: 400px; width: 100%;">
+                    <h3 style="margin: 0 0 20px 0; color: #62CC3C;">✓ Justificar Falta</h3>
+                    <p style="margin: 0 0 5px 0;"><strong>Aluno:</strong> ${studentName}</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Data:</strong> ${dateFormatted}</p>
+                    <p style="margin: 0 0 20px 0;"><strong>Atividade:</strong> ${activityName}</p>
+
+                    <label style="display: block; margin-bottom: 8px; color: rgba(255,255,255,0.7);">O que o responsável disse:</label>
+                    <textarea id="parent-excuse" rows="3" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; font-size: 1em; box-sizing: border-box; resize: vertical;"
+                              placeholder="Ex: consulta médica, doença, etc."></textarea>
+
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button onclick="closeModal()" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; cursor: pointer;">Cancelar</button>
+                        <button onclick="submitJustify(${studentId}, '${date}', '${activityType}', '${activityName}')"
+                                style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #62CC3C; color: #fff; cursor: pointer; font-weight: bold;">Justificar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('parent-excuse').focus();
+        }
+
+        function showRejectModal(studentId, date, activityType, activityName, studentName) {
+            const dateFormatted = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+            const modal = document.createElement('div');
+            modal.id = 'justify-modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;';
+            modal.innerHTML = `
+                <div style="background: #2D1B4E; border-radius: 16px; padding: 24px; max-width: 400px; width: 100%;">
+                    <h3 style="margin: 0 0 20px 0; color: #E74C3C;">✗ Rejeitar Justificativa</h3>
+                    <p style="margin: 0 0 5px 0;"><strong>Aluno:</strong> ${studentName}</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Data:</strong> ${dateFormatted}</p>
+                    <p style="margin: 0 0 20px 0;"><strong>Atividade:</strong> ${activityName}</p>
+
+                    <label style="display: block; margin-bottom: 8px; color: rgba(255,255,255,0.7);">O que o responsável disse:</label>
+                    <textarea id="parent-excuse" rows="2" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; font-size: 1em; box-sizing: border-box; resize: vertical;"
+                              placeholder="Ex: ajudando no supermercado"></textarea>
+
+                    <label style="display: block; margin: 15px 0 8px 0; color: rgba(255,255,255,0.7);">Por que não foi aceito:</label>
+                    <textarea id="decision-reason" rows="2" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; font-size: 1em; box-sizing: border-box; resize: vertical;"
+                              placeholder="Ex: não é motivo válido segundo o manual"></textarea>
+
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button onclick="closeModal()" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; cursor: pointer;">Cancelar</button>
+                        <button onclick="submitReject(${studentId}, '${date}', '${activityType}', '${activityName}')"
+                                style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #E74C3C; color: #fff; cursor: pointer; font-weight: bold;">Rejeitar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('parent-excuse').focus();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('justify-modal');
+            if (modal) modal.remove();
+        }
+
+        async function submitJustify(studentId, date, activityType, activityName) {
+            const parentExcuse = document.getElementById('parent-excuse').value.trim();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/justify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Token': API_TOKEN
+                    },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        date: date,
+                        activity_type: activityType,
+                        activity_name: activityName,
+                        parent_excuse: parentExcuse,
+                        decided_by: 'lillian'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Erro ao justificar');
+                }
+
+                closeModal();
+                alert('✅ Falta justificada com sucesso!');
+                loadPendingAbsences();  // Reload list
+
+            } catch (error) {
+                alert('❌ Erro: ' + error.message);
+            }
+        }
+
+        async function submitReject(studentId, date, activityType, activityName) {
+            const parentExcuse = document.getElementById('parent-excuse').value.trim();
+            const decisionReason = document.getElementById('decision-reason').value.trim();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/reject`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Token': API_TOKEN
+                    },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        date: date,
+                        activity_type: activityType,
+                        activity_name: activityName,
+                        parent_excuse: parentExcuse,
+                        decision_reason: decisionReason,
+                        decided_by: 'lillian'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Erro ao rejeitar');
+                }
+
+                closeModal();
+                alert('✅ Justificativa rejeitada e registrada!');
+                loadPendingAbsences();  // Reload list
+
+            } catch (error) {
+                alert('❌ Erro: ' + error.message);
+            }
+        }
+
+        // Load absences when Alertas tab is shown
+        const originalShowSection = showSection;
+        showSection = function(name) {
+            originalShowSection(name);
+            if (name === 'alertas') {
+                loadPendingAbsences();
+            }
+        };
+
+        // Also load on page load if Alertas is default
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if we're on Alertas tab
+            const alertasSection = document.getElementById('section-alertas');
+            if (alertasSection && alertasSection.style.display !== 'none') {
+                loadPendingAbsences();
+            }
+        });
     </script>
 </body>
 </html>
